@@ -4,7 +4,7 @@ set -euo pipefail
 [[ "$1" =~ ^[a-z0-9-]+$ ]] || { echo "bad job id"; exit 1; }
 export HYPERFRAMES_NO_TELEMETRY=1
 cd data; J="jobs/$1"; [ -d "$J" ] || { echo "no such job"; exit 1; }
-K="$RUNNER_TEMP/kit"; cp -R kit "$K"; P="inq-format4-$1"; cp -R "$J" "$K/$P"; cd "$K"; R="$GITHUB_WORKSPACE/data/jobs/$1/result"; mkdir -p "$R"
+K="$RUNNER_TEMP/rkit"; rm -rf "$K"; cp -R kit "$K"; P="inq-format4-$1"; cp -R "$J" "$K/$P"; cd "$K"; R="$GITHUB_WORKSPACE/data/jobs/$1/result"; mkdir -p "$R"
 TAG=$(cat "$P/tag.txt")
 step() { local n="$1"; shift; if "$@" > "$R/$n.log" 2>&1; then echo "ok   $n"; else echo "FAIL $n"; exit 1; fi; }
 step plan python3 _format-4-tools/make_gen.py "$P" "$TAG" "$P/plan.json"
