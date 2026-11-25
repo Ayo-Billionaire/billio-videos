@@ -1,0 +1,28 @@
+name: render
+on:
+  workflow_dispatch:
+    inputs:
+      job: {description: "job folder id in the data repo", required: true}
+permissions: {contents: read}
+concurrency: {group: render, cancel-in-progress: false}
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {repository: Ayo-Billionaire/billio-data, ssh-key: "${{ secrets.DATA_KEY }}", path: data, fetch-depth: 1}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg fonts-liberation > /dev/null
+      - run: pip install -q numpy==2.0.2 pillow==11.3.0
+      - name: build and check
+        env: {JOB: "${{ inputs.job }}"}
+        run: bash cloud/render.sh "$JOB"
+      - name: save result
+        if: always()
+        env: {JOB: "${{ inputs.job }}"}
+        run: bash cloud/save.sh "$JOB"
