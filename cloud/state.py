@@ -19,5 +19,9 @@ else:
     st.update(stage=what, at=now); st["reason"] = sys.argv[4][:300] if len(sys.argv) > 4 else ""
     if what == "built" and os.path.exists(d + "review.json"):
         rv = json.load(open(d + "review.json"))
-        if rv.get("verdict") == "fix" and rv.get("applied"): os.rename(d + "review.json", d + f"review-{st.get('fixed', 1)}.json")
+        # record.sh resets to origin/main first, so the "applied" mark from the fix step is gone here: a fix review that
+        # reached a successful build is always retired, or plan.py rebuilds the same fix every hour (it did, 26 Nov).
+        if rv.get("verdict") == "fix":
+            st["fixed"] = st.get("fixed", 0) + 1; rv["applied"] = True
+            json.dump(rv, open(d + f"review-{st['fixed']}.json", "w"), indent=1); os.remove(d + "review.json")
 json.dump(st, open(d + "state.json", "w"), indent=1); print(j, st["stage"])
