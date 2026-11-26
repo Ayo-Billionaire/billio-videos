@@ -15,9 +15,11 @@ for j, d in jobs.items():
     if s.get("stage") == "failed": say("failed:" + j, f"Video job {j} failed to build ({s.get('reason') or 'see the GitHub run'}). It was dropped, nothing was posted.", 24 * 365)
 future = [json.load(open(f))["slot"] for f in glob.glob(D + "/jobs/*/published.json")]
 ahead = sum(1 for s in future if p(s) > now); stock = sum(1 for d in jobs.values() if st(d).get("stage") in ("ready", "built") and not os.path.exists(d + "published.json"))
-if ahead + stock < 8: say("stock", f"Only {ahead} videos are scheduled ahead and {stock} are being made. Less than two days of videos left.")
+live = p(open(D + "/LIVE_SINCE").read().strip()) if os.path.exists(D + "/LIVE_SINCE") else now
+warm = now - live > dt.timedelta(hours=30)   # the first day has no stock yet; stock and writer alerts start after it
+if warm and ahead + stock < 8: say("stock", f"Only {ahead} videos are scheduled ahead and {stock} are being made. Less than two days of videos left.")
 newest = max([p(st(d)["created"]) for d in jobs.values() if st(d).get("created")] or [now - dt.timedelta(days=99)])
-if os.path.exists(D + "/writer/RULES.md") and now - newest > dt.timedelta(hours=36): say("writer", "The script writer has not added a video for over 36 hours. Check the Claude routine 'Billionaire video writer'.")
+if warm and now - newest > dt.timedelta(hours=36): say("writer", "The script writer has not added a video for over 36 hours. Check the Claude routine 'Billionaire video writer'.")
 cat = json.load(open(D + "/pool/catalog.json")); free = sum(1 for c in cat.values() if not c["used"])
 if free < 300: say("pictures", f"Only {free} unused pictures left. The weekly picture job should add more; check the 'pictures' GitHub job.", 24 * 3)
 if os.environ.get("RUN_FAILED") == "1": say("run", "The hourly video pipeline failed. Look at the latest 'pipeline' run on GitHub (billio-videos).", 6)
