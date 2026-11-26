@@ -67,7 +67,8 @@ def publish(d, slot, ch, video):
              {"id": slug[:-4] + ":instagram", "platform": "instagram", "when": iso(slot), "input": {**base, "channelId": ch["instagram"], "metadata": {"instagram": {"type": "reel", "shouldShareToFeed": True}}}}]
     if TEST_MIN:   # straight into Buffer (same mutation as the refill Worker), marked done so the Worker never repeats it
         for i in items:
-            c = buf("mutation($i:CreatePostInput!){createPost(input:$i){... on PostActionSuccess{post{id status dueAt}} ... on MutationError{message}}}", {"i": i["input"]})["createPost"]
+            ti = {k: v for k, v in i["input"].items() if k != "dueAt"} | {"mode": "shareNow"}   # Buffer Free holds 10 scheduled per channel; shareNow is outside that cap
+            c = buf("mutation($i:CreatePostInput!){createPost(input:$i){... on PostActionSuccess{post{id status dueAt}} ... on MutationError{message}}}", {"i": ti})["createPost"]
             if not c.get("post"): raise SystemExit(i["platform"] + " Buffer refused: " + str(c.get("message")))
             kv("vrefill:done:" + i["id"], json.dumps({"post": c["post"]["id"], "at": iso(now()), "test": True}).encode())
             print("BUFFER", i["platform"], c["post"]["id"], c["post"]["status"], c["post"]["dueAt"])
