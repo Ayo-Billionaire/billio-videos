@@ -4,7 +4,7 @@ on:
     inputs:
       job: {description: "job folder id in the data repo", required: true}
 permissions: {contents: read}
-concurrency: {group: hear-${{ inputs.job }}, cancel-in-progress: false}
+concurrency: {group: "hear-${{ inputs.job }}", cancel-in-progress: false}
 jobs:
   hear:
     runs-on: ubuntu-latest
