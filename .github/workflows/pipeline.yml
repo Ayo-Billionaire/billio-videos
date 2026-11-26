@@ -1,0 +1,66 @@
+name: pipeline
+on:
+  schedule: [{cron: "23 * * * *"}]
+  workflow_dispatch: {}
+permissions: {contents: read}
+concurrency: {group: pipeline, cancel-in-progress: false}
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs: {job: "${{ steps.p.outputs.job }}"}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {repository: Ayo-Billionaire/billio-data, ssh-key: "${{ secrets.DATA_KEY }}", path: data, fetch-depth: 1}
+      - id: p
+        run: echo "job=$(python3 cloud/plan.py data)" >> "$GITHUB_OUTPUT"
+  build:
+    needs: plan
+    if: needs.plan.outputs.job != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {repository: Ayo-Billionaire/billio-data, ssh-key: "${{ secrets.DATA_KEY }}", path: data, fetch-depth: 1}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - uses: actions/setup-node@v4
+        with: {node-version: "24"}
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libsndfile1 fonts-liberation > /dev/null
+      - run: pip install -q torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -q -r data/kit/_signature-sound/requirements.lock
+      - name: fix from review
+        env: {JOB: "${{ needs.plan.outputs.job }}"}
+        run: if [ -f "data/jobs/$JOB/review.json" ]; then python cloud/state.py data "$JOB" fixapply; fi
+      - name: build and check
+        id: make
+        env: {JOB: "${{ needs.plan.outputs.job }}"}
+        run: bash cloud/make.sh "$JOB"
+      - name: save result
+        if: always()
+        env: {JOB: "${{ needs.plan.outputs.job }}"}
+        run: bash cloud/save.sh "$JOB"
+      - name: record stage
+        if: always()
+        env: {JOB: "${{ needs.plan.outputs.job }}", OK: "${{ steps.make.outcome }}"}
+        run: bash cloud/record.sh "$JOB" "$OK"
+  publish:
+    needs: [plan, build]
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {repository: Ayo-Billionaire/billio-data, ssh-key: "${{ secrets.DATA_KEY }}", path: data, fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: schedule passed videos
+        id: pub
+        env: {DATA: data, BUFFER_KEY: "${{ secrets.BUFFER_KEY }}", BUFFER_ORG: "${{ secrets.BUFFER_ORG }}", CF_ACCOUNT: "${{ secrets.CF_ACCOUNT }}", CF_TOKEN: "${{ secrets.CF_TOKEN }}", YT_KEY: "${{ secrets.YT_KEY }}"}
+        run: bash cloud/publish.sh
+      - name: alerts
+        if: always()
+        env: {BREVO_KEY: "${{ secrets.BREVO_KEY }}", ALERT_FROM: "${{ secrets.ALERT_FROM }}", ALERT_TO: "${{ secrets.ALERT_TO }}", RUN_FAILED: "${{ (steps.pub.outcome == 'failure' || needs.build.result == 'failure') && '1' || '0' }}"}
+        run: cd data && git pull -q --rebase origin main; cd .. && python cloud/alerts.py data && bash cloud/commit.sh "alerts"

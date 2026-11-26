@@ -7,12 +7,19 @@ HERE="$GITHUB_WORKSPACE/cloud"; D="$GITHUB_WORKSPACE/data"; J="$D/jobs/$1"; R="$
 bash "$HERE/voice.sh" "$1"
 grep -q PASS "$R/status.txt" || { echo "FAIL voice checks"; exit 1; }
 rm "$R/status.txt"   # only the finished video may say PASS
-step() { local n="$1"; shift; if "$@" > "$R/$n.log" 2>&1; then echo "ok   $n"; else echo "FAIL $n"; exit 1; fi; }
+step() { local n="$1"; shift; if "$@" > "$R/$n.log" 2>&1; then echo "ok   $n"; else echo "FAIL $n"; echo "$n step failed" > "$RUNNER_TEMP/fail.txt"; exit 1; fi; }
 cp -R "$D/kit/base/ref" "$D/kit/base/motion-pick.md" "$J/"; cp -R "$R/assets" "$J/"; cp -R "$R/verify" "$J/"; cp -R "$D/kit/base/assets/." "$J/assets/"; cp "$D/kit/base/verify/sheets.py" "$J/verify/"; cp -R "$R/signature-lines" "$J/verify/"
 KEEP=""; [ -f "$J/art.json" ] && KEEP=1 && cp "$J/art.json" "$RUNNER_TEMP/art.json"
 cp "$J/picks.json" "$J/picks.chosen.json"
 step scenes python "$D/kit/_build/apply.py" "$J" "$J/spec.txt"
 [ -n "$KEEP" ] && cp "$RUNNER_TEMP/art.json" "$J/art.json"; [ -f "$J/plan.final.json" ] && cp "$J/plan.final.json" "$J/plan.json"
+if [ -f "$J/colours.json" ]; then python - "$J" <<'P'
+import json, sys
+j = sys.argv[1]; pl = json.load(open(j + "/plan.json"))
+for k, c in json.load(open(j + "/colours.json")).items(): pl[int(k) - 1][5] = c
+json.dump(pl, open(j + "/plan.json", "w"))
+P
+fi
 python - "$J" <<'P'
 import json, sys
 j = sys.argv[1]; a, b = set(json.load(open(j + "/scenes-kw.json"))), set(json.load(open(j + "/picks.json")))
