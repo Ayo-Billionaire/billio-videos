@@ -67,6 +67,9 @@ def publish(d, slot, ch, video):
              {"id": slug[:-4] + ":instagram", "platform": "instagram", "when": iso(slot), "input": {**base, "channelId": ch["instagram"], "metadata": {"instagram": {"type": "reel", "shouldShareToFeed": True}}}}]
     if TEST_MIN:   # straight into Buffer (same mutation as the refill Worker), marked done so the Worker never repeats it
         for i in items:
+            try: kv("vrefill:done:" + i["id"]); print("already posted", i["platform"]); continue   # a retry never posts twice
+            except urllib.error.HTTPError as e:
+                if e.code != 404: raise
             ti = {k: v for k, v in i["input"].items() if k != "dueAt"} | {"mode": "shareNow"}   # Buffer Free holds 10 scheduled per channel; shareNow is outside that cap
             c = buf("mutation($i:CreatePostInput!){createPost(input:$i){... on PostActionSuccess{post{id status dueAt}} ... on MutationError{message}}}", {"i": ti})["createPost"]
             if not c.get("post"): raise SystemExit(i["platform"] + " Buffer refused: " + str(c.get("message")))
@@ -77,7 +80,8 @@ def publish(d, slot, ch, video):
         kv("vrefill:queue", json.dumps(sorted(q + items, key=lambda i: (i["when"], i["id"]))).encode())
         back = {i["id"] for i in refill_list()}
         if not {x["id"] for x in items} <= back: raise SystemExit("refill list read back is missing the new items")
-    job = {"file": video, "title": title, "description": desc, "tags": tags, "when": iso(slot)}
+    yslot = max(slot, now() + dt.timedelta(minutes=32)) if TEST_MIN else slot   # yt_upload refuses a publish time under 30 min away
+    job = {"file": video, "title": title, "description": desc, "tags": tags, "when": iso(yslot)}
     json.dump(job, open(d + "yt.json", "w")); yt_upload.main([d + "yt.json"])
     rec = {"slot": iso(slot), "slug": slug, "at": iso(now())}; json.dump(rec, open(d + "published.json", "w"), indent=1); return rec
 def record(data, d):
