@@ -44,7 +44,8 @@ def next_slot(taken, at):
     raise SystemExit("no free slot in 100 days")
 def captions(c):
     tags = " ".join("#" + t.lstrip("#").lower().replace(" ", "") for t in c["hashtags"])
-    social = f'{c["caption"].strip()}\n\n{tags}'
+    body = "\n".join(l for l in c["caption"].strip().splitlines() if not l.strip().startswith("#")).strip()
+    social = f'{body}\n\n{tags}'
     return social, c["title"].strip(), f'{c["youtube_description"].strip()}\n\n{tags}', [t.lstrip("#") for t in c["hashtags"]]
 def ready(data):
     out = []
