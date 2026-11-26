@@ -3,6 +3,7 @@
 set -euo pipefail
 [[ "$1" =~ ^[a-z0-9-]+$ ]] || { echo "bad job id"; exit 1; }
 HERE="$GITHUB_WORKSPACE/cloud"; D="$GITHUB_WORKSPACE/data"; J="$D/jobs/$1"; R="$J/result"
+[ -f "$J/source.json" ] && bash "$HERE/hear.sh" "$1"
 bash "$HERE/voice.sh" "$1"
 grep -q PASS "$R/status.txt" || { echo "FAIL voice checks"; exit 1; }
 rm "$R/status.txt"   # only the finished video may say PASS

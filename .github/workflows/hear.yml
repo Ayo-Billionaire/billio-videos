@@ -1,0 +1,27 @@
+name: hear
+on:
+  workflow_dispatch:
+    inputs:
+      job: {description: "job folder id in the data repo", required: true}
+permissions: {contents: read}
+concurrency: {group: hear-${{ inputs.job }}, cancel-in-progress: false}
+jobs:
+  hear:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {repository: Ayo-Billionaire/billio-data, ssh-key: "${{ secrets.DATA_KEY }}", path: data, fetch-depth: 1}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libsndfile1 > /dev/null
+      - run: pip install -q torch==2.6.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -q -r data/kit/_signature-sound/requirements.lock
+      - name: build and check
+        env: {JOB: "${{ inputs.job }}"}
+        run: bash cloud/hear.sh "$JOB"
+      - name: save result
+        if: always()
+        env: {JOB: "${{ inputs.job }}"}
+        run: bash cloud/save.sh "$JOB"
