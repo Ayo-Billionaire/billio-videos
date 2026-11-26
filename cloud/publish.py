@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import yt_upload
 UTC, LAGOS = dt.timezone.utc, dt.timezone(dt.timedelta(hours=1)); LEAD = dt.timedelta(hours=2)
 NS = "0d1a574e1ba84c1b8d832bcff4ce7550"; MEDIA = "https://noqode-media.noqodepro.workers.dev/v/"
 E_ = os.environ.get; DRY = "--dry" in sys.argv
+TEST_MIN = int(E_("TEST_MIN") or 0)   # hand-started test: post the first passed video this many minutes from now
 def now(): return dt.datetime.now(UTC)
 def parse(s): return dt.datetime.fromisoformat(s.replace("Z", "+00:00")).astimezone(UTC).replace(second=0, microsecond=0)
 def iso(t): return t.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.000Z")
@@ -64,10 +65,17 @@ def publish(d, slot, ch, video):
     base = {"schedulingType": "automatic", "mode": "customScheduled", "dueAt": iso(slot), "assets": [{"video": {"url": MEDIA + slug}}], "text": social}
     items = [{"id": slug[:-4] + ":tiktok", "platform": "tiktok", "when": iso(slot), "input": {**base, "channelId": ch["tiktok"]}},
              {"id": slug[:-4] + ":instagram", "platform": "instagram", "when": iso(slot), "input": {**base, "channelId": ch["instagram"], "metadata": {"instagram": {"type": "reel", "shouldShareToFeed": True}}}}]
-    q = [i for i in refill_list() if parse(i["when"]) > now() and i["id"] not in {x["id"] for x in items}]
-    kv("vrefill:queue", json.dumps(sorted(q + items, key=lambda i: (i["when"], i["id"]))).encode())
-    back = {i["id"] for i in refill_list()}
-    if not {x["id"] for x in items} <= back: raise SystemExit("refill list read back is missing the new items")
+    if TEST_MIN:   # straight into Buffer (same mutation as the refill Worker), marked done so the Worker never repeats it
+        for i in items:
+            c = buf("mutation($i:CreatePostInput!){createPost(input:$i){... on PostActionSuccess{post{id status dueAt}} ... on MutationError{message}}}", {"i": i["input"]})["createPost"]
+            if not c.get("post"): raise SystemExit(i["platform"] + " Buffer refused: " + str(c.get("message")))
+            kv("vrefill:done:" + i["id"], json.dumps({"post": c["post"]["id"], "at": iso(now()), "test": True}).encode())
+            print("BUFFER", i["platform"], c["post"]["id"], c["post"]["status"], c["post"]["dueAt"])
+    else:
+        q = [i for i in refill_list() if parse(i["when"]) > now() and i["id"] not in {x["id"] for x in items}]
+        kv("vrefill:queue", json.dumps(sorted(q + items, key=lambda i: (i["when"], i["id"]))).encode())
+        back = {i["id"] for i in refill_list()}
+        if not {x["id"] for x in items} <= back: raise SystemExit("refill list read back is missing the new items")
     job = {"file": video, "title": title, "description": desc, "tags": tags, "when": iso(slot)}
     json.dump(job, open(d + "yt.json", "w")); yt_upload.main([d + "yt.json"])
     rec = {"slot": iso(slot), "slug": slug, "at": iso(now())}; json.dump(rec, open(d + "published.json", "w"), indent=1); return rec
@@ -95,9 +103,9 @@ def main():
     if not {"tiktok", "instagram"} <= set(ch): raise SystemExit("TikTok or Instagram missing or locked in Buffer")
     h = {"Authorization": "Bearer " + yt_upload.token(json.loads(E_("YT_KEY")))}; titles, ys = yt_upload.existing(h)
     taken = busy(ch, {parse(s + ":00Z") for s in ys})
-    for d in todo[:4]:
+    for d in todo[:1 if TEST_MIN else 4]:
         video = d + "result/test.mp4"
         if not os.path.exists(video): print("no video file for", d); continue
-        slot = next_slot(taken, now()); rec = publish(d, slot, ch, video); taken.add(slot)
+        slot = (now() + dt.timedelta(minutes=TEST_MIN)).replace(second=0, microsecond=0) if TEST_MIN else next_slot(taken, now()); rec = publish(d, slot, ch, video); taken.add(slot)
         if rec: record(data, d); print("SCHEDULED", open(d + "number.txt").read().strip(), slot.astimezone(LAGOS).strftime("%a %d %b %H:%M Lagos"))
 if __name__ == "__main__": main()

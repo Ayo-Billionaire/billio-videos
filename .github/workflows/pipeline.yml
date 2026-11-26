@@ -1,6 +1,8 @@
 name: pipeline
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      test_minutes: {description: "Test: post the first passed video this many minutes from now (empty = normal slots)", required: false, default: ""}
 permissions: {contents: read}
 concurrency: {group: pipeline, cancel-in-progress: false}
 jobs:
@@ -57,7 +59,7 @@ jobs:
         with: {python-version: "3.11"}
       - name: schedule passed videos
         id: pub
-        env: {DATA: data, BUFFER_KEY: "${{ secrets.BUFFER_KEY }}", BUFFER_ORG: "${{ secrets.BUFFER_ORG }}", CF_ACCOUNT: "${{ secrets.CF_ACCOUNT }}", CF_TOKEN: "${{ secrets.CF_TOKEN }}", YT_KEY: "${{ secrets.YT_KEY }}"}
+        env: {DATA: data, BUFFER_KEY: "${{ secrets.BUFFER_KEY }}", BUFFER_ORG: "${{ secrets.BUFFER_ORG }}", CF_ACCOUNT: "${{ secrets.CF_ACCOUNT }}", CF_TOKEN: "${{ secrets.CF_TOKEN }}", YT_KEY: "${{ secrets.YT_KEY }}", TEST_MIN: "${{ inputs.test_minutes }}"}
         run: bash cloud/publish.sh
       - name: alerts
         if: always()
