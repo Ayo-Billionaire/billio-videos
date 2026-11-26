@@ -22,6 +22,11 @@ newest = max([p(st(d)["created"]) for d in jobs.values() if st(d).get("created")
 if warm and now - newest > dt.timedelta(hours=36): say("writer", "The script writer has not added a video for over 36 hours. Check the Claude routine 'Billionaire video writer'.")
 cat = json.load(open(D + "/pool/catalog.json")); free = sum(1 for c in cat.values() if not c["used"])
 if free < 300: say("pictures", f"Only {free} unused pictures left. The weekly picture job should add more; check the 'pictures' GitHub job.", 24 * 3)
+kd = D + "/writer/keywords-date.txt"; ks = D + "/writer/keywords-status.txt"
+if os.path.exists(kd):
+    age = (now.date() - dt.date.fromisoformat(open(kd).read().strip())).days
+    if age > 14: say("keywords-old", f"The TikTok keyword list is {age} days old. The Mac refreshes it when it is on; turn the Mac on and leave Chrome open for an hour. Videos still post, with older hashtags.", 24 * 3)
+if os.path.exists(ks) and open(ks).read().startswith("FAIL"): say("keywords-fail", "The Mac could not refresh the TikTok keyword list: " + open(ks).read()[5:].strip()[:300] + " Videos still post with the last list.", 24)
 if os.environ.get("RUN_FAILED") == "1": say("run", "The hourly video pipeline failed. Look at the latest 'pipeline' run on GitHub (billio-videos).", 6)
 if msgs and not os.path.exists(D + "/STOP"):
     body = {"sender": {"email": E("ALERT_FROM"), "name": "Billionaire videos"}, "to": [{"email": E("ALERT_TO")}], "subject": "Billionaire videos: " + ("1 problem" if len(msgs) == 1 else f"{len(msgs)} problems"), "textContent": "\n\n".join(f"{n+1}. {m}" for n, m in enumerate(msgs)) + "\n\nTo stop everything, ask Claude to add the STOP file to billio-data."}
