@@ -13,4 +13,5 @@ jobs:
         with: {repository: Ayo-Billionaire/billio-data, ssh-key: "${{ secrets.DATA_KEY }}", path: data, fetch-depth: 1}
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg > /dev/null
       - run: python3 cloud/harvest.py data 400
+      - run: python3 cloud/weigh.py data
       - run: cd data && git config user.name billio-bot && git config user.email billio-bot@users.noreply.github.com && git add pool && git commit -q -m "pictures" && for i in 1 2 3; do git pull -q --rebase origin main && git push -q origin HEAD:main && break; sleep 10; done
