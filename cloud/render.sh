@@ -10,6 +10,9 @@ step() { local n="$1"; shift; if "$@" > "$R/$n.log" 2>&1; then echo "ok   $n"; e
 step plan python3 _format-4-tools/make_gen.py "$P" "$TAG" "$P/plan.json"
 cd "$P"; step page python3 gen.py
 step render npx --yes hyperframes@0.8.230 render . --output test.mp4
+# Final mix to -14.5 LUFS, the middle of the signature range (138 came out at -17.3): gain only, peak limiter, picture copied untouched
+loud() { local L G; L=$(ffmpeg -nostats -i test.mp4 -af ebur128 -f null - 2>&1 | grep -E '^\s+I:' | tail -1 | awk '{print $2}'); G=$(python3 -c "print(round(-14.5-($L),2))"); ffmpeg -v error -y -i test.mp4 -c:v copy -af "volume=${G}dB,alimiter=limit=0.95:level=false" -c:a aac -b:a 192k t2.mp4 && mv t2.mp4 test.mp4 && echo "mix $L LUFS, gain $G dB"; }
+step loud loud
 cp test.mp4 "$R/test.mp4"
 sed -i 's#/System/Library/Fonts/Supplemental/Arial Bold.ttf#/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf#' verify/sheets.py
 step sheets python3 verify/sheets.py test.mp4
