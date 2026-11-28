@@ -6,7 +6,7 @@ if what == "fixapply":
     rv = json.load(open(d + "review.json")); art = json.load(open(d + "art.json")) if os.path.exists(d + "art.json") else {}
     for k, v in rv.get("art", {}).items(): art.setdefault(k, {}).update(v)
     json.dump(art, open(d + "art.json", "w"))
-    if rv.get("picks"): pk = json.load(open(d + "picks.json")); pk.update(rv["picks"]); json.dump(pk, open(d + "picks.json", "w"))
+    if rv.get("picks"): pk = json.load(open(d + "picks.json")); cat = json.load(open(os.path.dirname(os.path.dirname(d.rstrip("/"))) + "/pool/catalog.json")); pk.update({k: v for k, v in rv["picks"].items() if v in cat and 0 < cat[v].get("bytes", 0) <= 1_900_000}); json.dump(pk, open(d + "picks.json", "w"))   # a swap over the 2 MB build limit is skipped, the old picture stays
     if rv.get("plan_colours"):
         pf = d + "plan.final.json"
         if os.path.exists(pf):
